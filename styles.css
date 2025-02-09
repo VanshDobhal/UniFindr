@@ -1,0 +1,115 @@
+/* General Styling */
+body {
+    font-family: Arial, sans-serif;
+    background: linear-gradient(135deg, #74ebd5, #acb6e5);
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Main Container (Centers Everything) */
+.container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    width: 100%;
+}
+
+/* Heading */
+h1 {
+    color: #fff;
+    font-size: 32px;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+/* Search Container (Centers Input & Button) */
+.search-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0px 5px 15px rgba(0, 0, 0, 0.2);
+    width: 90%;
+    max-width: 500px;
+    text-align: center;
+}
+
+/* Input Field */
+input {
+    padding: 12px;
+    width: 90%;
+    max-width: 400px;
+    font-size: 16px;
+    border: 2px solid #007bff;
+    border-radius: 5px;
+    outline: none;
+    transition: 0.3s;
+    text-align: center;
+}
+
+input:focus {
+    border-color: #0056b3;
+    box-shadow: 0px 0px 10px rgba(0, 91, 187, 0.3);
+}
+
+/* Search Button */
+button {
+    padding: 12px 20px;
+    font-size: 16px;
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-top: 10px;
+    transition: 0.3s;
+    width: 90%;
+    max-width: 400px;
+}
+
+button:hover {
+    background: #0056b3;
+    box-shadow: 0px 4px 10px rgba(0, 91, 187, 0.3);
+}
+
+/* University Results Container */
+#universities, #universityDetails {
+    margin-top: 20px;
+    max-width: 600px;
+    text-align: center;
+}
+
+/* University Card */
+.uni-card {
+    background: white;
+    padding: 15px;
+    margin: 15px auto;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    text-align: center;
+    width: 90%;
+    max-width: 500px;
+    transition: transform 0.3s ease-in-out;
+}
+
+.uni-card:hover {
+    transform: scale(1.05);
+}
+
+/* Responsive Design */
+@media (max-width: 600px) {
+    input, button {
+        width: 100%;
+    }
+}
