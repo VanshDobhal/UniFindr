@@ -4,22 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>University Finder</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
     <h1>🎓 University Finder</h1>
 
+    <!-- Search universities by country -->
     <div class="search-container">
         <input type="text" id="countryInput" placeholder="Enter country name...">
-        <button onclick="fetchUniversities()">Search Universities</button>
+        <button onclick="searchUniversities()">Search Universities</button>
     </div>
 
     <div id="universities"></div>
 
+    <!-- Search university details -->
     <div class="search-container">
         <input type="text" id="uniInput" placeholder="Enter university name...">
-        <button onclick="fetchUniversityDetails()">Search University Details</button>
+        <button onclick="searchUniversityDetails()">Search University Details</button>
     </div>
 
     <div id="universityDetails"></div>
