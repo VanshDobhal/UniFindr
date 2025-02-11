@@ -64,7 +64,7 @@ async function searchUniversities() {
         const topUnisList = formatGeminiResponse(topUnisData.candidates[0].content.parts[0].text);
 
         // Fetch universities from Hipolabs API
-        const response = await fetch(`http://universities.hipolabs.com/search?country=${country}`);
+        const response = await fetch(`https://universities.hipolabs.com/search?country=${country}`);
         const universities = await response.json();
 
         if (universities.length === 0) {
