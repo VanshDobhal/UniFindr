@@ -1,4 +1,3 @@
-
 // Constants
 const API_ENDPOINTS = {
     UNIVERSITIES: 'https://universities.hipolabs.com/search',
