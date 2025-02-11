@@ -1,229 +1,366 @@
-const GOOGLE_API_KEY = "AIzaSyDfz3QhwrVXMrauKbV9CdAPoA9uLC-JNXo";
 
-// Function to format the Gemini response
-function formatGeminiResponse(text) {
-    // Remove markdown-style formatting
-    text = text
-        .replace(/\*\*/g, '')  // Remove bold markers
-        .replace(/\*/g, '')    // Remove italic markers
-        .replace(/#{1,6}\s/g, '')  // Remove header markers
-        
-        // Convert bullet points to proper HTML list items
-        .split('\n')
-        .map(line => {
-            line = line.trim();
-            if (line.startsWith('•') || line.startsWith('-')) {
-                return `<li>${line.substring(1).trim()}</li>`;
-            }
-            // If it's a numbered line (e.g., "1. University Name")
-            if (/^\d+\./.test(line)) {
-                return `<li>${line}</li>`;
-            }
-            return line;
-        })
-        .join('\n');
+// Constants
+const API_ENDPOINTS = {
+    UNIVERSITIES: 'https://universities.hipolabs.com/search',
+    COUNTRY_INFO: 'https://restcountries.com/v3.1/name',
+    GEMINI: 'https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent'
+};
 
-    // Wrap lists in ul tags
-    if (text.includes('<li>')) {
-        text = `<ul>${text}</ul>`;
+const GEMINI_API_KEY = 'AIzaSyDfz3QhwrVXMrauKbV9CdAPoA9uLC-JNXo';
+
+// DOM Elements
+const elements = {
+    countryInput: document.getElementById('countryInput'),
+    searchBtn: document.getElementById('searchBtn'),
+    loading: document.getElementById('loading'),
+    error: document.getElementById('error'),
+    results: document.getElementById('results'),
+    topUnisList: document.getElementById('topUnisList'),
+    uniList: document.getElementById('uniList'),
+    modal: document.getElementById('uniModal'),
+    modalContent: document.querySelector('.modal-content'),
+    closeBtn: document.querySelector('.close-btn'),
+    
+    // University search elements
+    uniSearchInput: document.getElementById('uniSearchInput'),
+    uniSearchBtn: document.getElementById('uniSearchBtn'),
+    uniSearchLoading: document.getElementById('uniSearchLoading'),
+    uniSearchError: document.getElementById('uniSearchError'),
+    uniSearchResults: document.getElementById('uniSearchResults')
+};
+
+// Event Listeners
+elements.searchBtn.addEventListener('click', handleSearch);
+elements.countryInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') handleSearch();
+});
+elements.uniSearchBtn.addEventListener('click', handleUniSearch);
+elements.uniSearchInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') handleUniSearch();
+});
+elements.closeBtn.addEventListener('click', closeModal);
+window.addEventListener('click', (e) => {
+    if (e.target === elements.modal) closeModal();
+});
+
+// Validate API response helper
+function validateApiResponse(response, apiName) {
+    if (!response.ok) {
+        throw new Error(`${apiName} API error: ${response.status}`);
     }
-
-    return text;
+    return response;
 }
 
-// Function to search universities by country
-async function searchUniversities() {
-    const country = document.getElementById("countryInput").value;
-    const universitiesDiv = document.getElementById("universities");
-
+// Main search handler for country search
+async function handleSearch() {
+    const country = elements.countryInput.value.trim();
+    
     if (!country) {
-        alert("Please enter a country name.");
+        showError('Please enter a country name');
         return;
     }
 
-    universitiesDiv.innerHTML = "<p>Searching universities...</p>";
+    showLoading(true);
+    clearResults();
 
     try {
-        // Get top universities with QS rankings from Gemini
-        const topUnisResponse = await fetch(
-            `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${GOOGLE_API_KEY}`,
-            {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    contents: [{
-                        parts: [{
-                            text: `List the top 5 universities in ${country} with their current QS World University Rankings positions (2024). Format as: "1. University Name (QS Rank: #X)". If QS rank isn't available, mention "QS Rank: Not Ranked". Only provide the list, no additional text.`
-                        }]
-                    }]
-                })
-            }
-        );
-
-        const topUnisData = await topUnisResponse.json();
-        const topUnisList = formatGeminiResponse(topUnisData.candidates[0].content.parts[0].text);
-
-        // Fetch universities from Hipolabs API
-        const response = await fetch(`https://universities.hipolabs.com/search?country=${country}`);
-        const universities = await response.json();
-
-        if (universities.length === 0) {
-            universitiesDiv.innerHTML = "<p>No universities found.</p>";
-            return;
+        // Validate country name
+        const countryInfo = await fetchCountryInfo(country);
+        if (!countryInfo) {
+            throw new Error('Country not found. Please check the spelling and try again.');
         }
 
-        // Display results
-        universitiesDiv.innerHTML = `
-            <div class="country-header">
-                <h2>Universities in ${country}</h2>
-                <div class="top-unis">
-                    <h3>Top Universities (with QS World Rankings):</h3>
-                    <div class="rankings-list">
-                        ${topUnisList}
-                    </div>
-                </div>
-            </div>
-            <div class="all-unis">
-                <h3>Available Universities:</h3>
-            </div>
-        `;
+        // Fetch universities
+        const universities = await fetchUniversities(country);
+        if (universities.length === 0) {
+            throw new Error('No universities found for this country in our database.');
+        }
 
-        const allUnisDiv = universitiesDiv.querySelector('.all-unis');
+        // Process and display results
+        await displayResults(universities, countryInfo);
+    } catch (error) {
+        console.error('Search error:', error);
+        showError(error.message || 'An unexpected error occurred. Please try again.');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// University search handler
+async function handleUniSearch() {
+    const universityName = elements.uniSearchInput.value.trim();
+    
+    if (!universityName) {
+        showUniSearchError('Please enter a university name');
+        return;
+    }
+
+    showUniSearchLoading(true);
+    clearUniSearchResults();
+
+    try {
+        const details = await fetchUniversityDetails(universityName);
+        displayUniversityDetails(details);
+    } catch (error) {
+        console.error('University search error:', error);
+        showUniSearchError(error.message || 'Failed to fetch university details');
+    } finally {
+        showUniSearchLoading(false);
+    }
+}
+
+// API Calls
+async function fetchCountryInfo(country) {
+    try {
+        const response = await fetch(`${API_ENDPOINTS.COUNTRY_INFO}/${encodeURIComponent(country)}`);
+        validateApiResponse(response, 'Country Info');
         
-        universities.slice(0, 5).forEach(async (uni) => {
-            const uniCard = document.createElement("div");
-            uniCard.className = "uni-card";
-            
-            // Get QS ranking and details for each university
-            const detailsResponse = await fetch(
-                `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${GOOGLE_API_KEY}`,
-                {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        contents: [{
-                            parts: [{
-                                text: `What is the QS World University Ranking 2024 position for ${uni.name}? Respond with just the number. If not ranked, respond with "Not Ranked".`
-                            }]
-                        }]
-                    })
-                }
-            );
-            
-            const detailsData = await detailsResponse.json();
-            const qsRank = detailsData.candidates[0].content.parts[0].text.trim();
-            
-            uniCard.innerHTML = `
-                <h3>${uni.name}</h3>
-                <p><b>QS Ranking:</b> ${qsRank}</p>
-                <p><b>Website:</b> <a href="${uni.web_pages[0]}" target="_blank">${uni.web_pages[0]}</a></p>
-            `;
-            
-            allUnisDiv.appendChild(uniCard);
+        const data = await response.json();
+        if (!Array.isArray(data) || data.length === 0) {
+            throw new Error('Country not found');
+        }
+        
+        return data[0];
+    } catch (error) {
+        console.error('Error fetching country info:', error);
+        return null;
+    }
+}
+
+async function fetchUniversities(country) {
+    try {
+        const response = await fetch(`${API_ENDPOINTS.UNIVERSITIES}?country=${encodeURIComponent(country)}`, {
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+        
+        validateApiResponse(response, 'Universities');
+        
+        const data = await response.json();
+        
+        if (!Array.isArray(data)) {
+            throw new Error('Invalid response format from universities API');
+        }
+        
+        return data;
+    } catch (error) {
+        console.error('Error fetching universities:', error);
+        throw new Error('Failed to fetch universities. Please check your internet connection and try again.');
+    }
+}
+
+async function fetchUniversityDetails(universityName) {
+    try {
+        const prompt = `Provide the information for ${universityName}:
+        Format the response in clear sections with bullet points. and ignore the information that is not available`;
+
+        const response = await fetch(`${API_ENDPOINTS.GEMINI}?key=${GEMINI_API_KEY}`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [{ text: prompt }]
+                }]
+            })
         });
 
+        validateApiResponse(response, 'University Details');
+        
+        const data = await response.json();
+        if (!data.candidates || !data.candidates[0]?.content?.parts[0]?.text) {
+            throw new Error('No information available for this university');
+        }
+        
+        return data.candidates[0].content.parts[0].text;
     } catch (error) {
-        universitiesDiv.innerHTML = '<p class="error">Error fetching universities. Please try again later.</p>';
-        console.error("Error fetching universities:", error);
+        console.error('Error fetching university details:', error);
+        throw new Error('Failed to fetch university details. Please try again later.');
     }
 }
 
-// Function to search university details using Gemini API
-async function searchUniversityDetails() {
-    const university = document.getElementById("uniInput").value;
-    const detailsDiv = document.getElementById("universityDetails");
+// Display Functions
+async function displayResults(universities, countryInfo) {
+    elements.results.classList.remove('hidden');
 
-    if (!university) {
-        alert("Please enter a university name.");
-        return;
-    }
-
-    detailsDiv.innerHTML = "<p>Fetching university details...</p>";
+    // Sort universities by name
+    universities.sort((a, b) => a.name.localeCompare(b.name));
 
     try {
-        const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${GOOGLE_API_KEY}`,
-            {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    contents: [{
-                        parts: [{
-                            text: `Provide the following information for ${university}:
-                            1. QS World University Ranking 2024 (if available)
-                            2. Key facts
-                            3. Notable programs
-                            Use simple bullet points and avoid special formatting.`
-                        }]
-                    }]
-                })
-            }
-        );
+        // Get top universities using Gemini API
+        const topUnis = await fetchTopUniversities(countryInfo.name.common, universities.slice(0, 10));
+        elements.topUnisList.innerHTML = topUnis.map(uni => createUniversityCard(uni, true)).join('');
+    } catch (error) {
+        console.error('Error fetching top universities:', error);
+        // Fallback to showing first 5 universities
+        const topUnis = universities.slice(0, 5);
+        elements.topUnisList.innerHTML = topUnis.map(uni => createUniversityCard(uni, true)).join('');
+    }
+
+    // Display all universities
+    elements.uniList.innerHTML = universities.map(uni => createUniversityCard(uni)).join('');
+
+    // Add click events to university cards
+    document.querySelectorAll('.uni-card').forEach(card => {
+        card.addEventListener('click', () => {
+            const uniData = JSON.parse(card.dataset.uni);
+            showUniversityModal(uniData);
+        });
+    });
+}
+
+async function fetchTopUniversities(country, universities) {
+    try {
+        const prompt = `From this list of universities in ${country}, identify the top 5 based on academic reputation and rankings:\n${universities.map(u => u.name).join('\n')}`;
+
+        const response = await fetch(`${API_ENDPOINTS.GEMINI}?key=${GEMINI_API_KEY}`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [{ text: prompt }]
+                }]
+            })
+        });
+
+        validateApiResponse(response, 'Top Universities');
 
         const data = await response.json();
+        const topUnisList = data.candidates[0].content.parts[0].text
+            .split('\n')
+            .filter(line => line.trim())
+            .map(line => line.replace(/^\d+\.\s*/, '').trim());
 
-        if (data && data.candidates && data.candidates[0].content.parts) {
-            const detailedInfo = formatGeminiResponse(data.candidates[0].content.parts[0].text);
-            detailsDiv.innerHTML = `
-                <h2>${university}</h2>
-                <div class="detailed-info">
-                    ${detailedInfo}
-                </div>
-            `;
-        } else {
-            detailsDiv.innerHTML = "<p class='error'>Details unavailable.</p>";
-        }
+        return universities.filter(uni => 
+            topUnisList.some(topUni => uni.name.toLowerCase().includes(topUni.toLowerCase()))
+        );
     } catch (error) {
-        detailsDiv.innerHTML = "<p class='error'>Error fetching university details.</p>";
-        console.error("Error fetching university details:", error);
+        console.error('Error fetching top universities:', error);
+        throw new Error('Failed to identify top universities');
     }
 }
 
-// Add styles
-const styles = `
-    .country-header {
-        margin-bottom: 30px;
-    }
-    .top-unis {
-        background: #f5f5f5;
-        padding: 20px;
-        border-radius: 8px;
-        margin: 20px 0;
-    }
-    .rankings-list {
-        font-size: 16px;
-        line-height: 1.6;
-    }
-    .rankings-list ul {
-        margin: 0;
-        padding-left: 20px;
-    }
-    .rankings-list li {
-        margin: 8px 0;
-    }
-    .uni-card {
-        border: 1px solid #ddd;
-        margin: 10px 0;
-        padding: 15px;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    .detailed-info {
-        margin-top: 10px;
-        padding: 15px;
-        background: #f9f9f9;
-        border-radius: 6px;
-    }
-    .detailed-info ul {
-        margin: 10px 0;
-        padding-left: 20px;
-    }
-    .detailed-info li {
-        margin: 8px 0;
-        line-height: 1.4;
-    }
-    .error {
-        color: red;
-        font-style: italic;
-    }
-`;
+function createUniversityCard(uni, isTop = false) {
+    const uniData = JSON.stringify(uni).replace(/"/g, '&quot;');
+    
+    return `
+        <div class="uni-card" data-uni="${uniData}">
+            <h3>${uni.name}</h3>
+            <div class="stats">
+                ${isTop ? '<span class="stat"><i class="fas fa-star"></i> Top Rated</span>' : ''}
+                <span class="stat"><i class="fas fa-globe"></i> ${uni.country}</span>
+            </div>
+            <div class="links">
+                <a href="${uni.web_pages[0]}" target="_blank" class="primary-button">
+                    <i class="fas fa-external-link-alt"></i> Visit Website
+                </a>
+            </div>
+        </div>
+    `;
+}
+
+function displayUniversityDetails(details) {
+    const sections = details.split('\n\n').filter(section => section.trim());
+    
+    const formattedDetails = `
+        <div class="uni-details-header">
+            <h2>${elements.uniSearchInput.value}</h2>
+        </div>
+        <div class="uni-details-content">
+            ${sections.map(section => `
+                <div class="details-section">
+                    ${formatDetailSection(section)}
+                </div>
+            `).join('')}
+        </div>
+    `;
+
+    elements.uniSearchResults.innerHTML = formattedDetails;
+    elements.uniSearchResults.classList.remove('hidden');
+}
+
+function formatDetailSection(section) {
+    const lines = section.split('\n');
+    const title = lines[0].replace(/^\d+\.\s*/, '');
+    const content = lines.slice(1);
+
+    return `
+        <h3><i class="fas fa-info-circle"></i> ${title}</h3>
+        <ul class="details-list">
+            ${content.map(line => `
+                <li>
+                    <i class="fas fa-chevron-right"></i>
+                    <span>${line.replace(/^[•-]\s*/, '')}</span>
+                </li>
+            `).join('')}
+        </ul>
+    `;
+}
+
+// Modal Functions
+function showUniversityModal(uni) {
+    const details = `
+        <h2>${uni.name}</h2>
+        <div class="uni-details">
+            <p><strong>Country:</strong> ${uni.country}</p>
+            <p><strong>Alpha Code:</strong> ${uni.alpha_two_code}</p>
+            <p><strong>Website:</strong> <a href="${uni.web_pages[0]}" target="_blank">${uni.web_pages[0]}</a></p>
+            <p><strong>Domains:</strong> ${uni.domains.join(', ')}</p>
+        </div>
+    `;
+
+    document.getElementById('uniDetails').innerHTML = details;
+    elements.modal.classList.remove('hidden');
+}
+
+// Utility Functions
+function showLoading(show) {
+    elements.loading.classList.toggle('hidden', !show);
+    elements.searchBtn.disabled = show;
+}
+
+function showUniSearchLoading(show) {
+    elements.uniSearchLoading.classList.toggle('hidden', !show);
+    elements.uniSearchBtn.disabled = show;
+}
+
+function showError(message) {
+    elements.error.textContent = message;
+    elements.error.classList.remove('hidden');
+    setTimeout(() => elements.error.classList.add('hidden'), 5000);
+}
+
+function showUniSearchError(message) {
+    elements.uniSearchError.textContent = message;
+    elements.uniSearchError.classList.remove('hidden');
+    setTimeout(() => elements.uniSearchError.classList.add('hidden'), 5000);
+}
+
+function clearResults() {
+    elements.error.classList.add('hidden');
+    elements.results.classList.add('hidden');
+    elements.topUnisList.innerHTML = '';
+    elements.uniList.innerHTML = '';
+}
+
+function clearUniSearchResults() {
+    elements.uniSearchError.classList.add('hidden');
+    elements.uniSearchResults.classList.add('hidden');
+    elements.uniSearchResults.innerHTML = '';
+}
+
+function closeModal() {
+    elements.modal.classList.add('hidden');
+}
+
+// Error handling for fetch requests
+window.addEventListener('unhandledrejection', function(event) {
+    console.error('Unhandled promise rejection:', event.reason);
+    showError('An unexpected error occurred. Please try again later.');
+});
