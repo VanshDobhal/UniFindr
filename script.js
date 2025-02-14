@@ -42,7 +42,6 @@ window.addEventListener('click', (e) => {
     if (e.target === elements.modal) closeModal();
 });
 
-// Validate API response helper
 function validateApiResponse(response, apiName) {
     if (!response.ok) {
         throw new Error(`${apiName} API error: ${response.status}`);
@@ -50,7 +49,6 @@ function validateApiResponse(response, apiName) {
     return response;
 }
 
-// Main search handler for country search
 async function handleSearch() {
     const country = elements.countryInput.value.trim();
     
@@ -63,19 +61,19 @@ async function handleSearch() {
     clearResults();
 
     try {
-        // Validate country name
+       
         const countryInfo = await fetchCountryInfo(country);
         if (!countryInfo) {
             throw new Error('Country not found. Please check the spelling and try again.');
         }
 
-        // Fetch universities
+        
         const universities = await fetchUniversities(country);
         if (universities.length === 0) {
             throw new Error('No universities found for this country in our database.');
         }
 
-        // Process and display results
+    
         await displayResults(universities, countryInfo);
     } catch (error) {
         console.error('Search error:', error);
@@ -85,7 +83,6 @@ async function handleSearch() {
     }
 }
 
-// University search handler
 async function handleUniSearch() {
     const universityName = elements.uniSearchInput.value.trim();
     
