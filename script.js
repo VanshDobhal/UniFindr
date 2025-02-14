@@ -5,7 +5,7 @@ const API_ENDPOINTS = {
     GEMINI: 'https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent'
 };
 
-const GEMINI_API_KEY = 'AIzaSyDfz3QhwrVXMrauKbV9CdAPoA9uLC-JNXo';
+const GEMINI_API_KEY = 'AIzaSyD1bPkxTgEZ7Ru03dtIPkExjriTELDfIDE';
 
 // DOM Elements
 const elements = {
